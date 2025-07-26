@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:14.18
+    container_name: postgres-server
+    restart: unless-stopped
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data:cached
+    ports:
+      - ${PG_PORT}:${PG_PORT}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${PG_USER}" ]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DATABASE}
+
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - 9090:8080
