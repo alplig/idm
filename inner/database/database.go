@@ -4,12 +4,16 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"idm/inner/common"
+	"idm/utils"
+	"path/filepath"
 	"time"
 )
 
 // ConnectDb получить конфиг и подключиться с ним к базе данных
 func ConnectDb() *sqlx.DB {
-	cfg := common.GetConfig(".env")
+	pathRoot, _ := utils.FindRoot()
+	env := filepath.Join(pathRoot, ".env")
+	cfg := common.GetConfig(env)
 	return ConnectDbWithCfg(cfg)
 }
 
