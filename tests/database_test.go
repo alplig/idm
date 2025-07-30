@@ -38,7 +38,9 @@ func Test_getConfigEnvFileEmptyEnvVarExist(t *testing.T) {
 	if envFile, err := os.Create(envTestPath); err != nil {
 		t.Fatalf("Не удалось создать тестовый файл .env_test: %s", err)
 	} else {
-		envFile.Close()
+		if err := envFile.Close(); err != nil {
+			t.Fatalf("Не удалось освободить файл: %s", err)
+		}
 	}
 	expDriverName := "moc_driver_name"
 	expDSN := "moc_DSN"
