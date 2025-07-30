@@ -1,5 +1,5 @@
-\connect idm;
-
+-- +goose Up
+-- +goose StatementBegin
 CREATE TABLE public.role
 (
     id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -36,3 +36,14 @@ CREATE TRIGGER role_set_timestamp
     ON public.role
     FOR EACH ROW
     EXECUTE FUNCTION set_timestamp();
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TRIGGER IF EXISTS employee_set_timestamp ON public.employee;
+DROP TRIGGER IF EXISTS role_set_timestamp ON public.role;
+DROP FUNCTION IF EXISTS set_timestamp;
+
+DROP TABLE IF EXISTS public.employee;
+DROP TABLE IF EXISTS public.role;
+-- +goose StatementEnd
