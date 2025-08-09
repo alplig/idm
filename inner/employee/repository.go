@@ -1,70 +1,95 @@
 package employee
 
 import (
+	"database/sql"
+	"errors"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"time"
 )
 
-type EmployeeRepository struct {
+type Repository struct {
 	db *sqlx.DB
 }
 
-func NewEmployeeRepository(database *sqlx.DB) *EmployeeRepository {
-	return &EmployeeRepository{db: database}
+var (
+	NotFound = errors.New("employee not found")
+)
+
+func NewEmployeeRepository(database *sqlx.DB) *Repository {
+	return &Repository{db: database}
 }
 
-type EmployeeEntity struct {
+type Entity struct {
 	Id        int64     `db:"id"`
 	Name      string    `db:"name"`
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
-	IsDeleted bool      `db:"is_deleted"`
 }
 
 // AddEmployee - добавить новый элемент в коллекцию
-func (er *EmployeeRepository) AddEmployee(employee *EmployeeEntity) (e EmployeeEntity, err error) {
-	err = er.db.Get(&e, "INSERT INTO employee(name) VALUES(?) RETURNING *", employee.Name)
+func (r *Repository) AddEmployee(employee *Entity) (e Entity, err error) {
+	q := "INSERT INTO employee(name) VALUES($1) RETURNING id, created_at, updated_at, name"
+	err = r.db.Get(&e, q, employee.Name)
 	return e, err
 }
 
 // FindById - найти элемент коллекции по его id (этот метод мы реализовали на уроке)
-func (er *EmployeeRepository) FindById(id int64) (e EmployeeEntity, err error) {
-	err = er.db.Get(&e, "SELECT * FROM employee e WHERE e.is_deleted = FALSE AND e.id=?", id)
+func (r *Repository) FindById(id int64) (e Entity, err error) {
+	q := "SELECT id, name, created_at, updated_at FROM employee e WHERE e.is_deleted = FALSE AND e.id=$1"
+	if err = r.db.Get(&e, q, id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return e, NotFound
+		}
+		return e, fmt.Errorf("employeeRepository.FindById: %w", err)
+	}
 	return e, err
 }
 
 // FindAll - найти все элементы коллекции
-func (er *EmployeeRepository) FindAll() (employees []EmployeeEntity, err error) {
-	err = er.db.Select(&employees, "SELECT * FROM employee e WHERE e.is_deleted = FALSE")
+func (r *Repository) FindAll() (employees []Entity, err error) {
+	q := "SELECT  id, name, created_at, updated_at  FROM employee e WHERE e.is_deleted = FALSE"
+	if err = r.db.Select(&employees, q); err != nil {
+		return employees, fmt.Errorf("employeeRepository.FindAll: %w", err)
+	}
+	if len(employees) == 0 {
+		return employees, NotFound
+	}
 	return employees, err
 }
 
 // FindByIds - найти слайс элементов коллекции по слайсу их id
-func (er *EmployeeRepository) FindByIds(ids []int64) (employees []EmployeeEntity, err error) {
-	query, args, errQueryBuild := sqlx.In(
-		"SELECT * FROM employee e WHERE e.is_deleted = FALSE AND e.id IN (?)",
-		ids)
+func (r *Repository) FindByIds(ids []int64) (employees []Entity, err error) {
+	q := "SELECT  id, name, created_at, updated_at  FROM employee e WHERE e.is_deleted = FALSE AND e.id IN (?)"
+	query, args, errQueryBuild := sqlx.In(q, ids)
 	if errQueryBuild != nil {
 		return nil, errQueryBuild
 	}
-	err = er.db.Select(&employees, query, args...)
+	query = sqlx.Rebind(2, query)
+	if err = r.db.Select(&employees, query, args...); err != nil {
+		return employees, fmt.Errorf("employeeRepository.FindByIds: %w", err)
+	}
+	if len(employees) == 0 {
+		return employees, NotFound
+	}
 	return employees, err
 }
 
 // DeleteByIdSilent - удалить элемент коллекции по его id
-func (er *EmployeeRepository) DeleteByIdSilent(id int64) (err error) {
-	_, err = er.db.Exec("UPDATE employee e SET is_deleted = TRUE WHERE e.is_deleted = FALSE and e.id = ?", id)
+func (r *Repository) DeleteByIdSilent(id int64) (err error) {
+	q := "UPDATE employee e SET is_deleted = TRUE WHERE e.is_deleted = FALSE and e.id = $1"
+	_, err = r.db.Exec(q, id)
 	return err
 }
 
 // DeleteByIdsSilent - удалить элементы по слайсу их id
-func (er *EmployeeRepository) DeleteByIdsSilent(ids []int64) (err error) {
-	query, args, errQueryBuild := sqlx.In(
-		"UPDATE employee e SET is_deleted = TRUE WHERE e.is_deleted = FALSE and e.id IN (?)",
-		ids)
+func (r *Repository) DeleteByIdsSilent(ids []int64) (err error) {
+	q := "UPDATE employee e SET is_deleted = TRUE WHERE e.is_deleted = FALSE and e.id IN (?)"
+	query, args, errQueryBuild := sqlx.In(q, ids)
 	if errQueryBuild != nil {
 		return errQueryBuild
 	}
-	_, err = er.db.Exec(query, args...)
+	query = sqlx.Rebind(2, query)
+	_, err = r.db.Exec(query, args...)
 	return err
 }

@@ -99,7 +99,7 @@ func Test_connectDbWrongCredentials(t *testing.T) {
 // 7 приложение может подключиться к базе данных с корректным конфигом.
 func Test_connectDbWithCfg(t *testing.T) {
 	a := assert.New(t)
-	c := database.ConnectDb()
+	c := database.ConnectDb(database.TestEnv)
 	status := true
 	if err := c.Ping(); err != nil {
 		status = false
