@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"idm/inner/common"
@@ -9,12 +10,38 @@ import (
 	"time"
 )
 
+type Env string
+
+const (
+	DevEnv  Env = ".env"
+	TestEnv Env = ".env_test"
+)
+
 // ConnectDb получить конфиг и подключиться с ним к базе данных
-func ConnectDb() *sqlx.DB {
-	pathRoot, _ := utils.FindRoot()
-	env := filepath.Join(pathRoot, ".env")
-	cfg := common.GetConfig(env)
+func ConnectDb(env Env) *sqlx.DB {
+	cfg, err := loadConfig(env)
+	if err != nil {
+		panic(err)
+	}
 	return ConnectDbWithCfg(cfg)
+}
+
+func loadConfig(envType Env) (common.Config, error) {
+	pathRoot, _ := utils.FindRoot()
+	switch envType {
+	case DevEnv:
+		{
+			path := filepath.Join(pathRoot, string(DevEnv))
+			return common.GetConfig(path), nil
+		}
+	case TestEnv:
+		{
+			path := filepath.Join(pathRoot, string(TestEnv))
+			return common.GetConfig(path), nil
+		}
+	default:
+		return common.Config{}, fmt.Errorf("unknown environment: %s", envType)
+	}
 }
 
 // ConnectDbWithCfg подключиться к базе данных с переданным конфигом

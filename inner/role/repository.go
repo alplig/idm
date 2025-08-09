@@ -1,47 +1,63 @@
 package role
 
 import (
+	"database/sql"
+	"errors"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"time"
 )
 
-type RoleRepository struct {
+type Repository struct {
 	db *sqlx.DB
 }
 
-func NewRoleRepository(database *sqlx.DB) *RoleRepository {
-	return &RoleRepository{db: database}
+var (
+	NotFound = errors.New("role not found")
+)
+
+func NewRoleRepository(database *sqlx.DB) *Repository {
+	return &Repository{db: database}
 }
 
-type RoleEntity struct {
+type Entity struct {
 	Id        int64     `db:"id"`
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
-	IsDeleted bool      `db:"is_deleted"`
 	Name      string    `db:"name"`
 }
 
 // AddRole - добавить новый элемент в коллекцию
-func (rr *RoleRepository) AddRole(role *RoleEntity) (r RoleEntity, err error) {
-	err = rr.db.Get(&r, "INSERT INTO role(name) VALUES(?) RETURNING *", role.Name)
+func (rr *Repository) AddRole(role *Entity) (r Entity, err error) {
+	q := "INSERT INTO role(name) VALUES($1) RETURNING id, created_at, updated_at, name"
+	err = rr.db.Get(&r, q, role.Name)
 	return r, err
 }
 
 // FindById - найти элемент коллекции по его id (этот метод мы реализовали на уроке)
-func (rr *RoleRepository) FindById(id int64) (role RoleEntity, err error) {
-	err = rr.db.Get(&role, "SELECT * FROM role rl WHERE rl.is_deleted = FALSE AND rl.id=?", id)
+func (rr *Repository) FindById(id int64) (role Entity, err error) {
+	q := "SELECT id, created_at, updated_at, name FROM role rl WHERE rl.is_deleted = FALSE AND rl.id=$1"
+	if err = rr.db.Get(&role, q, id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Entity{}, NotFound
+		}
+		return Entity{}, fmt.Errorf("role.FindById: %w", err)
+	}
 	return role, err
 }
 
 // FindAll - найти все элементы коллекции
-func (rr *RoleRepository) FindAll() (roles []RoleEntity, err error) {
-	err = rr.db.Select(&roles, "SELECT * FROM role rl WHERE rl.is_deleted = FALSE")
+func (rr *Repository) FindAll() (roles []Entity, err error) {
+	q := "SELECT id, created_at, updated_at, name FROM role rl WHERE rl.is_deleted = FALSE"
+	err = rr.db.Select(&roles, q)
 	return roles, err
 }
 
 // FindByIds - найти слайс элементов коллекции по слайсу их id
-func (rr *RoleRepository) FindByIds(ids []int64) (roles []RoleEntity, err error) {
-	query, args, errQueryBuild := sqlx.In("SELECT * FROM role rl WHERE rl.is_deleted = FALSE AND rl.id IN (?)", ids)
+func (rr *Repository) FindByIds(ids []int64) (roles []Entity, err error) {
+	q := "SELECT id, created_at, updated_at, name FROM role rl WHERE rl.is_deleted = FALSE AND rl.id IN (?)"
+	query, args, errQueryBuild := sqlx.In(q, ids)
+	query = sqlx.Rebind(2, query)
 	if errQueryBuild != nil {
 		return nil, errQueryBuild
 	}
@@ -50,14 +66,17 @@ func (rr *RoleRepository) FindByIds(ids []int64) (roles []RoleEntity, err error)
 }
 
 // DeleteByIdSilent - удалить элемент коллекции по его id
-func (rr *RoleRepository) DeleteByIdSilent(id int64) (err error) {
-	_, err = rr.db.Exec("UPDATE role rl SET is_deleted = TRUE WHERE rl.is_deleted = FALSE and rl.id = ?", id)
+func (rr *Repository) DeleteByIdSilent(id int64) (err error) {
+	q := "UPDATE role rl SET is_deleted = TRUE WHERE rl.is_deleted = FALSE and rl.id = $1"
+	_, err = rr.db.Exec(q, id)
 	return err
 }
 
 // DeleteByIdsSilent - удалить элементы по слайсу их id
-func (rr *RoleRepository) DeleteByIdsSilent(ids []int64) (err error) {
-	query, args, errQueryBuild := sqlx.In("UPDATE role rl SET is_deleted = TRUE WHERE rl.is_deleted = FALSE and rl.id IN (?)", ids)
+func (rr *Repository) DeleteByIdsSilent(ids []int64) (err error) {
+	q := "UPDATE role rl SET is_deleted = TRUE WHERE rl.is_deleted = FALSE and rl.id IN (?)"
+	query, args, errQueryBuild := sqlx.In(q, ids)
+	query = sqlx.Rebind(2, query)
 	if errQueryBuild != nil {
 		return errQueryBuild
 	}
